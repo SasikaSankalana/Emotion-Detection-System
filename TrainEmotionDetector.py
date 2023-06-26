@@ -1,9 +1,9 @@
 import tensorflow as tf
 from tensorflow import keras
 from keras.models import Sequential
-from keras.layers import Conv2D, MaxPooling2D, Dense, Dropout, Flatten
+from keras.layers import Conv2D, MaxPooling2D, Dense, Dropout, Flatten, BatchNormalization
 from keras.optimizers import Adam
-
+import matplotlib.pyplot as plt
 
 train_data_generator = keras.preprocessing.image.ImageDataGenerator()
 test_data_generator = keras.preprocessing.image.ImageDataGenerator()
@@ -24,38 +24,54 @@ test_generator = test_data_generator.flow_from_directory(
     class_mode='categorical'
 )
 
-# Try 1 - Training Accuracy - 0.32 Test Accuracy - 0.40
 model = Sequential([
     Conv2D(filters=32, kernel_size=(3, 3),
-           input_shape=(48, 48, 1), activation="relu"),
-    MaxPooling2D(pool_size=(2, 2)),
-    Conv2D(filters=32, kernel_size=(3, 3),  activation="relu"),
+           activation="relu", input_shape=(48, 48, 1), padding="same", strides=1),
+    Conv2D(filters=64, kernel_size=(3, 3),
+           activation="relu", padding="same", strides=1),
+    BatchNormalization(),
     MaxPooling2D(pool_size=(2, 2)),
     Dropout(0.25),
 
-    Conv2D(filters=32, kernel_size=(3, 3), activation="relu"),
-    MaxPooling2D(pool_size=(2, 2)),
-    Conv2D(filters=32, kernel_size=(3, 3),  activation="relu"),
+    Conv2D(filters=128, kernel_size=(3, 3), activation="relu", padding="same",
+           strides=1, kernel_regularizer=tf.keras.regularizers.l2(0.01)),
+    Conv2D(filters=256, kernel_size=(3, 3), activation="relu", padding="same",
+           strides=1, kernel_regularizer=tf.keras.regularizers.l2(0.01)),
+    BatchNormalization(),
     MaxPooling2D(pool_size=(2, 2)),
     Dropout(0.25),
 
     Flatten(),
-    Dense(1024, activation="relu"),
-    Dropout(0.5),
+    Dense(256, activation="relu"),
+    BatchNormalization(),
+    Dropout(0.25),
     Dense(7, activation="softmax")
 ])
 
 
 model.compile(loss='categorical_crossentropy', optimizer=Adam(
-    learning_rate=0.0001, decay=1e-6), metrics=['accuracy'])
+    learning_rate=0.0001), metrics=['accuracy'])
 
 model_info = model.fit_generator(
     train_generator,
-    steps_per_epoch=len(train_generator)//64,
-    epochs=50,
+    steps_per_epoch=len(train_generator),
+    epochs=100,
     validation_data=test_generator,
-    validation_steps=len(test_generator)//64
+    validation_steps=len(test_generator)
 )
+
+train_accuracy = model_info.history['accuracy']
+val_accuracy = model_info.history['val_accuracy']
+
+epochs = range(1, len(train_accuracy) + 1)
+plt.plot(epochs, train_accuracy, 'r', label='Train Accuracy')
+plt.plot(epochs, val_accuracy, 'b', label='Validation Accuracy')
+plt.title('Training and Validation Accuracy')
+plt.xlabel('Epochs')
+plt.ylabel('Accuracy')
+plt.legend()
+plt.show()
+
 
 model_json = model.to_json()
 with open("model.json", "w") as json_file:
